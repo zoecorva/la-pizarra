@@ -52,6 +52,28 @@ footer, [data-testid="stToolbar"] { visibility: hidden; }
 .hero .hero-sub { max-width: 32rem; margin-top: 1rem; font-size: 1.08rem; line-height: 1.5; color: #EEF2F1 !important; opacity: .88; }
 .hero .hero-date { margin-top: 1.4rem; font-size: .9rem; color: #E0A526 !important; font-weight: 500; }
 
+
+/* Tablero: baldosas con número, variación y minigráfico */
+.grid { display: grid; gap: .7rem; margin: 0 0 1.3rem; grid-template-columns: repeat(auto-fit, minmax(160px, 1fr)); }
+.tile { border-radius: 8px; padding: .85rem 1rem .6rem; overflow: hidden; }
+.tile.dark { background: #14213D; }
+.tile.light { background: #E1E8E6; }
+.tile.dark, .tile.dark * { color: #EEF2F1 !important; }
+.tile.light, .tile.light * { color: #14213D !important; }
+.t-label { font-size: .86rem; opacity: .8; }
+.t-value { font-family: 'Newsreader', serif !important; font-size: 2.1rem; font-weight: 500; line-height: 1.1; margin: .1rem 0 .4rem; letter-spacing: -.01em; }
+.t-value.long { font-size: 1.2rem; line-height: 1.3; padding: .35rem 0 .25rem; }
+.t-sub { font-size: .8rem; opacity: .75; }
+.chip { display: inline-block; font-size: .78rem; font-weight: 700; padding: .08rem .5rem; border-radius: 99px; }
+.tile.dark .chip.up { background: rgba(240,138,150,.22); color: #FFC4CB !important; }
+.tile.dark .chip.down { background: rgba(111,191,154,.22); color: #A9E5C7 !important; }
+.tile.light .chip.up { background: rgba(178,58,72,.14); color: #B23A48 !important; }
+.tile.light .chip.down { background: rgba(47,107,79,.16); color: #2F6B4F !important; }
+.chip.flat { background: rgba(128,128,128,.2); }
+.spark { display: block; width: 100%; height: 30px; margin-top: .55rem; }
+.lead { font-family: 'Newsreader', serif; font-size: 1.28rem; line-height: 1.4; margin: 0 0 1.2rem; max-width: 46rem; }
+.lead, .lead * { font-family: 'Newsreader', serif !important; }
+
 /* Indicadores: números grandes de imprenta, sin tarjetas */
 [data-testid="stMetric"] { background: transparent; border-top: 2px solid #14213D; padding: .55rem 0 .4rem; }
 [data-testid="stMetricLabel"] * { font-size: .92rem; color: #4A5568 !important; }
@@ -68,11 +90,13 @@ footer, [data-testid="stToolbar"] { visibility: hidden; }
 h2, h3, [data-testid="stHeading"] * { font-family: 'Newsreader', serif !important; font-weight: 500; letter-spacing: -.01em; color: #14213D !important; }
 .stAlert { border-radius: 4px; }
 @media (max-width: 640px) {
-    .block-container { padding: 1rem .9rem 3rem; }
-    .hero { padding: 1.6rem 1.2rem; margin-bottom: 1.2rem; }
-    [data-testid="stHorizontalBlock"] { flex-wrap: wrap !important; gap: .4rem 1rem !important; }
-    [data-testid="stColumn"], [data-testid="column"] { flex: 1 1 calc(50% - 1rem) !important; min-width: calc(50% - 1rem) !important; }
-    [data-testid="stMetricValue"] * { font-size: 1.7rem; }
+    div.block-container, [data-testid="stMainBlockContainer"] { padding: .8rem .85rem 3rem !important; }
+    [data-testid="stVerticalBlock"] { gap: .8rem !important; }
+    .hero { padding: 1.5rem 1.2rem; margin-bottom: 1rem; }
+    .grid { grid-template-columns: repeat(2, 1fr); gap: .55rem; }
+    .t-value { font-size: 1.75rem; }
+    .lead { font-size: 1.12rem; }
+    [data-testid="stHeading"] h3 { font-size: 1.45rem; padding: .2rem 0 0; }
     [data-baseweb="tab-list"] { gap: 1rem; }
     [data-baseweb="tab"] p { font-size: .95rem; }
 }
@@ -116,6 +140,52 @@ def load_inflacion() -> pd.DataFrame:
     factor = 1 + df["mensual"] / 100
     df["interanual"] = (factor.rolling(12).apply(np.prod, raw=True) - 1) * 100
     return df
+
+
+def num(x: float, d: int = 1) -> str:
+    return f"{x:,.{d}f}".replace(",", "X").replace(".", ",").replace("X", ".")
+
+
+def chart(fig, fecha: bool = True, **_):
+    """Gráfico sin barra de herramientas ni zoom táctil (en el celu se activaba al hacer scroll)."""
+    fig.update_layout(dragmode=False, height=fig.layout.height or 320)
+    if fecha:
+        fig.update_xaxes(tickformat="%m/%y", hoverformat="%d/%m/%Y")
+    st.plotly_chart(fig, width="stretch", config={"displayModeBar": False, "scrollZoom": False})
+
+
+def spark(series: pd.Series, color: str, n: int = 45) -> str:
+    v = series.dropna().tail(n).to_numpy(dtype=float)
+    if len(v) < 2:
+        return ""
+    lo, span = v.min(), (v.max() - v.min()) or 1.0
+    pts = " ".join(f"{i * 100 / (len(v) - 1):.1f},{28 - (x - lo) / span * 25 - 1.5:.1f}" for i, x in enumerate(v))
+    return (f'<svg class="spark" viewBox="0 0 100 28" preserveAspectRatio="none"><polyline points="{pts}" '
+            f'fill="none" stroke="{color}" stroke-width="2" vector-effect="non-scaling-stroke" '
+            f'stroke-linejoin="round"/></svg>')
+
+
+def chip(x, suf: str) -> str:
+    if x is None:
+        return ""
+    cls = "up" if x > 0.05 else "down" if x < -0.05 else "flat"
+    arrow = "▲" if cls == "up" else "▼" if cls == "down" else "■"
+    return f'<span class="chip {cls}">{arrow} {num(abs(x))}{suf}</span>'
+
+
+def tile(label: str, value: str, foot: str = "", spark_svg: str = "", kind: str = "light") -> str:
+    return (f'<div class="tile {kind}"><div class="t-label">{label}</div><div class="t-value{" long" if len(value) > 14 else ""}">{value}</div>'
+            f'<div>{foot}</div>{spark_svg}</div>')
+
+
+def board(tiles: list) -> None:
+    st.markdown(f'<div class="grid">{"".join(tiles)}</div>', unsafe_allow_html=True)
+
+
+def kpis(items: list) -> None:
+    """items: lista de (etiqueta, valor, texto_chico_opcional)."""
+    board([tile(a, b, f'<span class="t-sub">{c}</span>' if c else "") for a, b, c, *_ in items])
+
 
 
 def change(series: pd.Series, days: int = 30, pct: bool = True):
@@ -252,28 +322,31 @@ infl_f = infl.loc[inicio:fin]
 if len(infl_f) < 6:
     infl_f = infl.tail(6)
 
-# Header: cotizaciones con variación a 30 días
-st.caption("Las variaciones de los dólares y las brechas se miden contra hace 30 días.")
-cols = st.columns(len(dolar.columns))
-for c, name in zip(cols, dolar.columns):
-    delta = change(dolar[name])
-    c.metric(f"Dólar {name}", ars(dolar[name].iloc[-1]),
-             f"{delta:+.1f}%" if delta is not None else None, delta_color="off")
-
-# Header: brechas e inflación
-brecha_cols = [n for n in ["Blue", "MEP", "CCL"] if n in dolar.columns]
-r2 = st.columns(len(brecha_cols) + 2)
-for c, name in zip(r2, brecha_cols):
-    b = (dolar[name] / dolar["Oficial"] - 1) * 100
-    delta = change(b, pct=False)
-    c.metric(f"Brecha {name}", f"{b.iloc[-1]:.1f}%",
-             f"{delta:+.1f} p.p." if delta is not None else None, delta_color="inverse")
+# Tablero principal
 m, ia = infl["mensual"], infl["interanual"].dropna()
-r2[-2].metric(f"Inflación {MESES[infl.index[-1].month - 1]} {infl.index[-1].year}",
-              f"{m.iloc[-1]:.1f}%", f"{m.iloc[-1] - m.iloc[-2]:+.1f} p.p. vs mes ant.",
-              delta_color="inverse")
-r2[-1].metric("Inflación interanual", f"{ia.iloc[-1]:.1f}%",
-              f"{ia.iloc[-1] - ia.iloc[-2]:+.1f} p.p. vs mes ant.", delta_color="inverse")
+mes_txt = f"{MESES[infl.index[-1].month - 1]} {infl.index[-1].year}"
+ref = "CCL" if "CCL" in dolar.columns else "Blue" if "Blue" in dolar.columns else None
+if ref:
+    br = (dolar[ref].iloc[-1] / dolar["Oficial"].iloc[-1] - 1) * 100
+    st.markdown(f'<p class="lead">El dólar {ref} cotiza {num(abs(br))}% {"por encima" if br >= 0 else "por debajo"} del oficial. '
+                f'La inflación de {mes_txt} fue {num(m.iloc[-1])}% y la interanual, {num(ia.iloc[-1])}%.</p>',
+                unsafe_allow_html=True)
+
+SPARK_OSCURO = {"Oficial": "#EEF2F1", "Blue": ORO, "MEP": "#6FBF9A", "CCL": "#F08A96"}
+board([tile(f"Dólar {n}", ars(dolar[n].iloc[-1]), chip(change(dolar[n]), "%"),
+            spark(dolar[n], SPARK_OSCURO.get(n, ORO)), "dark") for n in dolar.columns])
+st.caption("Variación contra hace 30 días. El minigráfico muestra las últimas semanas.")
+
+tiles = []
+for n in [x for x in ["Blue", "MEP", "CCL"] if x in dolar.columns]:
+    bs = (dolar[n] / dolar["Oficial"] - 1) * 100
+    tiles.append(tile(f"Brecha {n}", f"{num(bs.iloc[-1])}%", chip(change(bs, pct=False), " p.p."),
+                      spark(bs, COLORES[n])))
+tiles.append(tile(f"Inflación {mes_txt}", f"{num(m.iloc[-1])}%", chip(m.iloc[-1] - m.iloc[-2], " p.p."),
+                  spark(m, TINTA, 12)))
+tiles.append(tile("Inflación interanual", f"{num(ia.iloc[-1])}%", chip(ia.iloc[-1] - ia.iloc[-2], " p.p."),
+                  spark(ia, TINTA, 24)))
+board(tiles)
 
 tab1, tab2, tab3, tab4, tab5, tab6 = st.tabs(
     ["Dólar", "Inflación", "Calculadora", "BCRA", "Bancos", "Modelo"])
@@ -282,23 +355,24 @@ with tab1:
     if not seleccion:
         st.info("Elegí al menos una cotización en la barra lateral.")
     else:
-        st.plotly_chart(px.line(d[seleccion], color_discrete_map=COLORES, labels={"value": "ARS", "fecha": "", "variable": ""}),
+        chart(px.line(d[seleccion], color_discrete_map=COLORES, labels={"value": "ARS", "fecha": "", "variable": ""}),
                         width="stretch")
         otras = [n for n in seleccion if n != "Oficial"]
         if otras:
             brechas = d[otras].div(d["Oficial"], axis=0).sub(1).mul(100)
             st.subheader("Brecha contra el oficial")
-            st.plotly_chart(px.line(brechas, color_discrete_map=COLORES, labels={"value": "Brecha (%)", "fecha": "", "variable": ""}),
+            chart(px.line(brechas, color_discrete_map=COLORES, labels={"value": "Brecha (%)", "fecha": "", "variable": ""}),
                             width="stretch")
-        st.subheader(f"Resumen del período ({inicio:%d/%m/%Y} – {fin:%d/%m/%Y})")
+        st.subheader("Resumen del período")
+        st.caption(f"Del {inicio:%d/%m/%Y} al {fin:%d/%m/%Y}")
         resumen = pd.DataFrame({"Mínimo": d[seleccion].min(), "Promedio": d[seleccion].mean(),
                                 "Máximo": d[seleccion].max(), "Último": d[seleccion].iloc[-1]})
         st.dataframe(resumen.round(0), width="stretch")
 
 with tab2:
-    st.plotly_chart(px.bar(infl_f, y="mensual", labels={"mensual": "Inflación mensual (%)", "fecha": ""}),
+    chart(px.bar(infl_f, y="mensual", labels={"mensual": "Inflación mensual (%)", "fecha": ""}),
                     width="stretch")
-    st.plotly_chart(px.line(infl_f.dropna(), y="interanual",
+    chart(px.line(infl_f.dropna(), y="interanual",
                             labels={"interanual": "Inflación interanual (%)", "fecha": ""}),
                     width="stretch")
 
@@ -319,12 +393,11 @@ with tab3:
         tramo = infl["mensual"].iloc[i0 + 1:i1 + 1]
         acum = (1 + tramo / 100).cumprod()
         factor = acum.iloc[-1]
-        k1, k2, k3 = st.columns(3)
-        k1.metric(f"{ars(monto)} de {labels[i0]} equivalen a", ars(monto * factor))
-        k2.metric("Inflación acumulada", f"{(factor - 1) * 100:.1f}%")
-        k3.metric("Poder de compra perdido", f"{(1 - 1 / factor) * 100:.1f}%")
+        kpis([(f"{ars(monto)} de {labels[i0]} equivalen a", ars(monto * factor), ""),
+              ("Inflación acumulada", f"{num((factor - 1) * 100)}%", ""),
+              ("Poder de compra perdido", f"{num((1 - 1 / factor) * 100)}%", "")])
         serie = pd.concat([pd.Series([monto], index=[infl.index[i0]]), acum * monto])
-        st.plotly_chart(px.line(serie.rename("Monto ajustado"),
+        chart(px.line(serie.rename("Monto ajustado"),
                                 labels={"value": "ARS", "index": ""}), width="stretch")
 
 with tab4:
@@ -346,13 +419,11 @@ with tab4:
             st.info("Esa variable no tiene datos en el período elegido. Probá con un período más largo.")
         else:
             unidad = fila["unidadExpresion"] if pd.notna(fila["unidadExpresion"]) else ""
-            k1, k2, k3 = st.columns(3)
             delta = (serie.iloc[-1] / serie.iloc[0] - 1) * 100 if serie.iloc[0] else None
-            k1.metric("Último valor", f"{serie.iloc[-1]:,.2f}", f"{delta:+.1f}% en el período" if delta is not None else None,
-                      delta_color="off")
-            k2.metric("Fecha", f"{serie.index[-1]:%d/%m/%Y}")
-            k3.metric("Unidad", unidad or "—")
-            st.plotly_chart(px.line(serie.rename(nombres[vid]), labels={"value": unidad, "fecha": "", "variable": ""}),
+            kpis([("Último valor", num(serie.iloc[-1], 2), f"{num(delta)}% en el período" if delta is not None else ""),
+                  ("Fecha", f"{serie.index[-1]:%d/%m/%Y}", ""),
+                  ("Unidad", unidad or "—", "")])
+            chart(px.line(serie.rename(nombres[vid]), labels={"value": unidad, "fecha": "", "variable": ""}),
                             width="stretch")
     st.caption("Fuente: API de Estadísticas Monetarias v4.0 del BCRA (api.bcra.gob.ar).")
 
@@ -377,14 +448,12 @@ with tab5:
             st.info("No hay tasas disponibles para esa selección.")
         else:
             gana = int((t["Rendimiento real vs inflación (%)"] > 0).sum())
-            k1, k2, k3 = st.columns(3)
-            k1.metric("Mejor tasa", f"{t['TNA'].iloc[0]:.1f}%", t["entidad"].iloc[0], delta_color="off")
-            k2.metric("Promedio de bancos", f"{t['TNA'].mean():.1f}%")
-            k3.metric("Le ganan a la inflación", f"{gana} de {len(t)}",
-                      f"inflación último mes: {infl['mensual'].iloc[-1]:.1f}%", delta_color="off")
-            st.plotly_chart(px.bar(t.sort_values("TNA"), x="TNA", y="entidad", orientation="h",
+            kpis([("Mejor tasa", f"{num(t['TNA'].iloc[0])}%", t["entidad"].iloc[0]),
+                  ("Promedio de bancos", f"{num(t['TNA'].mean())}%", ""),
+                  ("Le ganan a la inflación", f"{gana} de {len(t)}", f"inflación último mes: {num(infl['mensual'].iloc[-1])}%")])
+            chart(px.bar(t.sort_values("TNA"), x="TNA", y="entidad", orientation="h",
                                    labels={"TNA": "TNA (%)", "entidad": ""}, height=max(400, 22 * len(t))),
-                            width="stretch")
+                  fecha=False)
             st.dataframe(t.round(2), width="stretch", hide_index=True)
     st.caption("Fuente: Régimen de Transparencia del BCRA, vía argentinadatos.com. "
                "La tasa puede cambiar para otros montos o plazos. Dato informativo, no es una recomendación de inversión.")
@@ -395,13 +464,11 @@ with tab6:
              "validada con *walk-forward* sobre los últimos 12 meses. Se compara contra un baseline "
              "ingenuo (repetir el mes anterior) y contra un ensemble 50/50 de ambos.")
     result, metrics, forecast = backtest_and_forecast(infl["mensual"])
-    m1, m2, m3, m4 = st.columns(4)
-    m1.metric("MAE modelo (p.p.)", f"{metrics['modelo']:.2f}")
-    m2.metric("MAE ingenuo (p.p.)", f"{metrics['ingenuo']:.2f}")
-    m3.metric("MAE ensemble (p.p.)", f"{metrics['ensemble']:.2f}")
-    m4.metric("Próximo mes (ensemble)", f"{forecast['ensemble']:.1f}%",
-              f"modelo solo: {forecast['modelo']:.1f}%", delta_color="off")
-    st.plotly_chart(px.line(result, y=["real", "modelo", "ingenuo", "ensemble"],
+    kpis([("Error del modelo (p.p.)", num(metrics["modelo"], 2), ""),
+          ("Error del ingenuo (p.p.)", num(metrics["ingenuo"], 2), ""),
+          ("Error del ensemble (p.p.)", num(metrics["ensemble"], 2), ""),
+          ("Próximo mes (ensemble)", f"{num(forecast['ensemble'])}%", f"modelo solo: {num(forecast['modelo'])}%")])
+    chart(px.line(result, y=["real", "modelo", "ingenuo", "ensemble"],
                             labels={"value": "Inflación mensual (%)", "fecha": "", "variable": ""}),
                     width="stretch")
     st.info("Los pesos del ensemble son fijos (50/50) y no se ajustan mirando el período de prueba, "
