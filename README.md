@@ -6,8 +6,8 @@ Dashboard interactivo que descarga datos públicos de la economía argentina y m
 - **Filtros de período** (1 mes a "Todo", o fechas personalizadas) y selector de cotizaciones.
 - **Inflación mensual e interanual** (INDEC) con variación contra el mes anterior.
 - **Calculadora de inflación**: cuánto equivale hoy un monto de cualquier mes anterior.
-- **Modelo predictivo** (Ridge con rezagos) para la inflación del próximo mes, con
-  validación *walk-forward* y comparación contra un baseline ingenuo.
+- **Modelo predictivo** (Ridge con rezagos y medias móviles) para la inflación del próximo mes,
+  con validación *walk-forward*, comparación contra un baseline ingenuo y un ensemble 50/50.
 
 ## Stack
 Python · pandas · scikit-learn · Plotly · Streamlit · API de [argentinadatos.com](https://argentinadatos.com)
