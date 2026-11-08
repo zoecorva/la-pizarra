@@ -62,6 +62,38 @@ def change(series: pd.Series, days: int = 30, pct: bool = True):
     return (s.iloc[-1] / ref.iloc[-1] - 1) * 100 if pct else s.iloc[-1] - ref.iloc[-1]
 
 
+# ---------- BCRA (API oficial, v4.0) ----------
+BCRA_URL = "https://api.bcra.gob.ar/estadisticas/v4.0/Monetarias"
+
+
+@st.cache_data(ttl=3600)
+def bcra_catalogo() -> pd.DataFrame:
+    r = requests.get(BCRA_URL, params={"categoria": "Principales Variables", "limit": 1000}, timeout=30)
+    r.raise_for_status()
+    cols = ["idVariable", "descripcion", "periodicidad", "unidadExpresion"]
+    return pd.DataFrame(r.json()["results"]).reindex(columns=cols)
+
+
+@st.cache_data(ttl=3600)
+def bcra_serie(id_variable: int, desde: str, hasta: str) -> pd.Series:
+    rows, offset = [], 0
+    while True:
+        r = requests.get(f"{BCRA_URL}/{id_variable}", timeout=30,
+                         params={"desde": desde, "hasta": hasta, "limit": 3000, "offset": offset})
+        r.raise_for_status()
+        j = r.json()
+        detalle = j["results"][0]["detalle"] if j.get("results") else []
+        rows += detalle
+        offset += 3000
+        if not detalle or offset >= j["metadata"]["resultset"]["count"]:
+            break
+    if not rows:
+        return pd.Series(dtype=float)
+    df = pd.DataFrame(rows)
+    df["fecha"] = pd.to_datetime(df["fecha"])
+    return df.drop_duplicates("fecha").set_index("fecha")["valor"].sort_index()
+
+
 # ---------- Modelo ----------
 LAGS = [1, 2, 3, 6]
 
@@ -132,7 +164,7 @@ with st.sidebar:
     else:
         inicio = fin - pd.Timedelta(days=PERIODOS[periodo])
     seleccion = st.multiselect("Cotizaciones", list(dolar.columns), default=list(dolar.columns))
-    st.caption("Fuente: argentinadatos.com (BCRA, INDEC y mercado)")
+    st.caption("Fuentes: argentinadatos.com y API del BCRA")
 
 d = dolar.loc[inicio:fin]
 infl_f = infl.loc[inicio:fin]
@@ -162,7 +194,8 @@ r2[-2].metric(f"Inflación {MESES[infl.index[-1].month - 1]} {infl.index[-1].yea
 r2[-1].metric("Inflación interanual", f"{ia.iloc[-1]:.1f}%",
               f"{ia.iloc[-1] - ia.iloc[-2]:+.1f} p.p. vs mes ant.", delta_color="inverse")
 
-tab1, tab2, tab3, tab4 = st.tabs(["💵 Dólar", "🛒 Inflación", "🧮 Calculadora", "🤖 Modelo"])
+tab1, tab2, tab3, tab4, tab5 = st.tabs(
+    ["💵 Dólar", "🛒 Inflación", "🧮 Calculadora", "🏦 BCRA", "🤖 Modelo"])
 
 with tab1:
     if not seleccion:
@@ -214,6 +247,35 @@ with tab3:
                                 labels={"value": "ARS", "index": ""}), width="stretch")
 
 with tab4:
+    st.subheader("Datos directos del BCRA")
+    st.write("Series oficiales de las *Principales Variables* del Banco Central, "
+             "consultadas en vivo a su API. Elegí una variable para ver su evolución en el período seleccionado.")
+    try:
+        cat = bcra_catalogo().dropna(subset=["idVariable", "descripcion"])
+        nombres = cat.set_index("idVariable")["descripcion"]
+        ids = list(nombres.index)
+        vid = st.selectbox("Variable", ids, index=ids.index(1) if 1 in ids else 0,
+                           format_func=lambda i: nombres[i])
+        fila = cat[cat["idVariable"] == vid].iloc[0]
+        serie = bcra_serie(int(vid), f"{inicio:%Y-%m-%d}", f"{fin:%Y-%m-%d}")
+    except (requests.RequestException, KeyError, ValueError, IndexError) as e:
+        st.warning(f"No pude consultar la API del BCRA en este momento ({e}). El resto del dashboard sigue funcionando.")
+    else:
+        if serie.empty:
+            st.info("Esa variable no tiene datos en el período elegido. Probá con un período más largo.")
+        else:
+            unidad = fila["unidadExpresion"] if pd.notna(fila["unidadExpresion"]) else ""
+            k1, k2, k3 = st.columns(3)
+            delta = (serie.iloc[-1] / serie.iloc[0] - 1) * 100 if serie.iloc[0] else None
+            k1.metric("Último valor", f"{serie.iloc[-1]:,.2f}", f"{delta:+.1f}% en el período" if delta is not None else None,
+                      delta_color="off")
+            k2.metric("Fecha", f"{serie.index[-1]:%d/%m/%Y}")
+            k3.metric("Unidad", unidad or "—")
+            st.plotly_chart(px.line(serie.rename(nombres[vid]), labels={"value": unidad, "fecha": "", "variable": ""}),
+                            width="stretch")
+    st.caption("Fuente: API de Estadísticas Monetarias v4.0 del BCRA (api.bcra.gob.ar).")
+
+with tab5:
     st.subheader("Predicción de la inflación mensual")
     st.write("Regresión Ridge con rezagos de 1, 2, 3 y 6 meses y medias móviles de 3 y 6 meses, "
              "validada con *walk-forward* sobre los últimos 12 meses. Se compara contra un baseline "
