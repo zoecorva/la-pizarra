@@ -2,6 +2,8 @@
 import numpy as np
 import pandas as pd
 import plotly.express as px
+import plotly.graph_objects as go
+import plotly.io as pio
 import requests
 import streamlit as st
 from sklearn.linear_model import Ridge
@@ -13,6 +15,61 @@ MESES = ["ene", "feb", "mar", "abr", "may", "jun", "jul", "ago", "sep", "oct", "
 PERIODOS = {"1 mes": 30, "3 meses": 90, "6 meses": 180, "1 año": 365, "3 años": 1095, "Todo": None}
 
 st.set_page_config(page_title="Macro Argentina", page_icon="📈", layout="wide")
+
+# ---------- Identidad visual: papel moneda ----------
+TINTA, PAPEL, ORO, VERDE, ROJO = "#14213D", "#EEF2F1", "#E0A526", "#2F6B4F", "#B23A48"
+COLORES = {"Oficial": TINTA, "Blue": ORO, "MEP": VERDE, "CCL": ROJO}
+
+pio.templates["macro"] = go.layout.Template(layout=dict(
+    font=dict(family="Hanken Grotesk, sans-serif", color=TINTA, size=13),
+    colorway=[TINTA, ORO, VERDE, ROJO, "#6B7A99", "#9A7B4F"],
+    paper_bgcolor="rgba(0,0,0,0)", plot_bgcolor="rgba(0,0,0,0)",
+    xaxis=dict(gridcolor="rgba(20,33,61,.07)", linecolor=TINTA, zeroline=False, title_text=""),
+    yaxis=dict(gridcolor="rgba(20,33,61,.07)", zeroline=False),
+    legend=dict(orientation="h", yanchor="bottom", y=1.02, x=0, title_text=""),
+    margin=dict(l=0, r=0, t=36, b=0),
+))
+pio.templates.default = "macro"
+
+st.markdown("""
+<style>
+@import url('https://fonts.googleapis.com/css2?family=Newsreader:opsz,wght@6..72,400;6..72,500;6..72,600&family=Hanken+Grotesk:wght@400;500;700&display=swap');
+.stApp { background: #EEF2F1; }
+.stApp, .stApp p, .stApp label, .stApp li, [data-testid="stMarkdownContainer"] *, [data-testid="stCaptionContainer"] * {
+    font-family: 'Hanken Grotesk', sans-serif; color: #14213D; }
+[data-testid="stSidebar"] { background: #E1E8E6; }
+.block-container { max-width: 1180px; padding-top: 2rem; padding-bottom: 4rem; }
+footer, [data-testid="stToolbar"] { visibility: hidden; }
+
+/* Portada: guilloché de billete hecho con círculos concéntricos */
+.hero { position: relative; overflow: hidden; border-radius: 6px; padding: 2.6rem 2.4rem 2.3rem; margin-bottom: 1.8rem; background: #14213D; }
+.hero::before { content: ""; position: absolute; inset: 0; background:
+    repeating-radial-gradient(circle at 88% 18%, transparent 0 7px, rgba(238,242,241,.10) 7px 8px),
+    repeating-radial-gradient(circle at 72% 95%, transparent 0 11px, rgba(224,165,38,.16) 11px 12px); }
+.hero > div { position: relative; }
+.hero .hero-title { font-family: 'Newsreader', serif !important; font-weight: 500; color: #EEF2F1 !important;
+    font-size: clamp(2.8rem, 7vw, 5rem); line-height: .98; letter-spacing: -.025em; }
+.hero .hero-sub { max-width: 32rem; margin-top: 1rem; font-size: 1.08rem; line-height: 1.5; color: #EEF2F1 !important; opacity: .88; }
+.hero .hero-date { margin-top: 1.4rem; font-size: .9rem; color: #E0A526 !important; font-weight: 500; }
+
+/* Indicadores: números grandes de imprenta, sin tarjetas */
+[data-testid="stMetric"] { background: transparent; border-top: 2px solid #14213D; padding: .55rem 0 .4rem; }
+[data-testid="stMetricLabel"] * { font-size: .92rem; color: #4A5568 !important; }
+[data-testid="stMetricValue"] * { font-family: 'Newsreader', serif !important; font-weight: 500; font-size: 2.25rem; letter-spacing: -.01em; }
+[data-testid="stMetricDelta"] * { font-size: .85rem; }
+
+/* Pestañas */
+[data-baseweb="tab-list"] { gap: 1.6rem; border-bottom: 1px solid rgba(20,33,61,.18); }
+[data-baseweb="tab"] { padding-left: 0; padding-right: 0; }
+[data-baseweb="tab"] p { font-size: 1.02rem; font-weight: 500; }
+[data-baseweb="tab-highlight"] { background-color: #E0A526 !important; height: 3px; }
+
+/* Títulos */
+h2, h3, [data-testid="stHeading"] * { font-family: 'Newsreader', serif !important; font-weight: 500; letter-spacing: -.01em; color: #14213D !important; }
+.stAlert { border-radius: 4px; }
+@media (max-width: 640px) { .hero { padding: 1.8rem 1.3rem; } [data-testid="stMetricValue"] * { font-size: 1.8rem; } }
+</style>
+""", unsafe_allow_html=True)
 
 
 def ars(x: float) -> str:
@@ -146,13 +203,20 @@ def backtest_and_forecast(s: pd.Series, test_size: int = 12):
 
 
 # ---------- App ----------
-st.title("📈 Macro Argentina")
-
 try:
     dolar, infl = load_dolar(), load_inflacion()
 except requests.RequestException as e:
     st.error(f"No pude descargar los datos: {e}")
     st.stop()
+
+
+st.markdown(f"""
+<div class="hero"><div>
+  <div class="hero-title">Macro Argentina</div>
+  <div class="hero-sub">Dólar, brechas, inflación, reservas y tasas de plazo fijo en un solo tablero, con datos oficiales.</div>
+  <div class="hero-date">Datos al {dolar.index[-1]:%d/%m/%Y}. Se actualizan cada hora.</div>
+</div></div>
+""", unsafe_allow_html=True)
 
 # Sidebar: período y cotizaciones
 with st.sidebar:
@@ -183,7 +247,7 @@ if len(infl_f) < 6:
     infl_f = infl.tail(6)
 
 # Header: cotizaciones con variación a 30 días
-st.caption(f"Datos al {dolar.index[-1]:%d/%m/%Y} · variaciones contra hace 30 días")
+st.caption("Las variaciones de los dólares y las brechas se miden contra hace 30 días.")
 cols = st.columns(len(dolar.columns))
 for c, name in zip(cols, dolar.columns):
     delta = change(dolar[name])
@@ -206,19 +270,19 @@ r2[-1].metric("Inflación interanual", f"{ia.iloc[-1]:.1f}%",
               f"{ia.iloc[-1] - ia.iloc[-2]:+.1f} p.p. vs mes ant.", delta_color="inverse")
 
 tab1, tab2, tab3, tab4, tab5, tab6 = st.tabs(
-    ["💵 Dólar", "🛒 Inflación", "🧮 Calculadora", "🏦 BCRA", "🏛️ Bancos", "🤖 Modelo"])
+    ["Dólar", "Inflación", "Calculadora", "BCRA", "Bancos", "Modelo"])
 
 with tab1:
     if not seleccion:
         st.info("Elegí al menos una cotización en la barra lateral.")
     else:
-        st.plotly_chart(px.line(d[seleccion], labels={"value": "ARS", "fecha": "", "variable": ""}),
+        st.plotly_chart(px.line(d[seleccion], color_discrete_map=COLORES, labels={"value": "ARS", "fecha": "", "variable": ""}),
                         width="stretch")
         otras = [n for n in seleccion if n != "Oficial"]
         if otras:
             brechas = d[otras].div(d["Oficial"], axis=0).sub(1).mul(100)
             st.subheader("Brecha contra el oficial")
-            st.plotly_chart(px.line(brechas, labels={"value": "Brecha (%)", "fecha": "", "variable": ""}),
+            st.plotly_chart(px.line(brechas, color_discrete_map=COLORES, labels={"value": "Brecha (%)", "fecha": "", "variable": ""}),
                             width="stretch")
         st.subheader(f"Resumen del período ({inicio:%d/%m/%Y} – {fin:%d/%m/%Y})")
         resumen = pd.DataFrame({"Mínimo": d[seleccion].min(), "Promedio": d[seleccion].mean(),
@@ -337,4 +401,3 @@ with tab6:
     st.info("Los pesos del ensemble son fijos (50/50) y no se ajustan mirando el período de prueba, "
             "para no inflar el resultado. Con series cortas y cambios de régimen, el baseline "
             "ingenuo suele ser difícil de superar: reportarlo con honestidad es parte del análisis.")
-    
