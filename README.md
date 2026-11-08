@@ -6,6 +6,7 @@ Dashboard interactivo que descarga datos públicos de la economía argentina y m
 - **Filtros de período** (1 mes a "Todo", o fechas personalizadas) y selector de cotizaciones.
 - **Inflación mensual e interanual** (INDEC) con variación contra el mes anterior.
 - **Datos oficiales del BCRA** (API v4.0): explorador de las principales variables (reservas, tasas, base monetaria, etc.).
+- **Plazo fijo por banco**: ranking de tasas de todos los bancos, interés ganado y rendimiento real contra la inflación.
 - **Calculadora de inflación**: cuánto equivale hoy un monto de cualquier mes anterior.
 - **Modelo predictivo** (Ridge con rezagos y medias móviles) para la inflación del próximo mes,
   con validación *walk-forward*, comparación contra un baseline ingenuo y un ensemble 50/50.
