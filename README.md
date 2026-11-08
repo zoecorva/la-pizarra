@@ -2,8 +2,10 @@
 
 Dashboard interactivo que descarga datos públicos de la economía argentina y muestra:
 
-- **Dólar oficial vs. blue** y la evolución de la **brecha cambiaria**.
-- **Inflación mensual e interanual** (INDEC).
+- **Dólar oficial, blue, MEP y CCL**, con variación a 30 días y **brechas** contra el oficial.
+- **Filtros de período** (1 mes a "Todo", o fechas personalizadas) y selector de cotizaciones.
+- **Inflación mensual e interanual** (INDEC) con variación contra el mes anterior.
+- **Calculadora de inflación**: cuánto equivale hoy un monto de cualquier mes anterior.
 - **Modelo predictivo** (Ridge con rezagos) para la inflación del próximo mes, con
   validación *walk-forward* y comparación contra un baseline ingenuo.
 
