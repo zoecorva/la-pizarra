@@ -62,6 +62,17 @@ def change(series: pd.Series, days: int = 30, pct: bool = True):
     return (s.iloc[-1] / ref.iloc[-1] - 1) * 100 if pct else s.iloc[-1] - ref.iloc[-1]
 
 
+@st.cache_data(ttl=3600)
+def load_plazo_fijo() -> pd.DataFrame:
+    df = pd.DataFrame(get_json("finanzas/tasas/plazoFijo"))
+    df = df.reindex(columns=["entidad", "tnaClientes", "tnaNoClientes"])
+    for c in ["tnaClientes", "tnaNoClientes"]:
+        df[c] = pd.to_numeric(df[c], errors="coerce")
+    if df[["tnaClientes", "tnaNoClientes"]].max().max() <= 2:  # vino como fracción (0.30) y no como %
+        df[["tnaClientes", "tnaNoClientes"]] *= 100
+    return df.dropna(subset=["entidad"]).dropna(subset=["tnaClientes", "tnaNoClientes"], how="all")
+
+
 # ---------- BCRA (API oficial, v4.0) ----------
 BCRA_URL = "https://api.bcra.gob.ar/estadisticas/v4.0/Monetarias"
 
@@ -194,8 +205,8 @@ r2[-2].metric(f"Inflación {MESES[infl.index[-1].month - 1]} {infl.index[-1].yea
 r2[-1].metric("Inflación interanual", f"{ia.iloc[-1]:.1f}%",
               f"{ia.iloc[-1] - ia.iloc[-2]:+.1f} p.p. vs mes ant.", delta_color="inverse")
 
-tab1, tab2, tab3, tab4, tab5 = st.tabs(
-    ["💵 Dólar", "🛒 Inflación", "🧮 Calculadora", "🏦 BCRA", "🤖 Modelo"])
+tab1, tab2, tab3, tab4, tab5, tab6 = st.tabs(
+    ["💵 Dólar", "🛒 Inflación", "🧮 Calculadora", "🏦 BCRA", "🏛️ Bancos", "🤖 Modelo"])
 
 with tab1:
     if not seleccion:
@@ -276,6 +287,39 @@ with tab4:
     st.caption("Fuente: API de Estadísticas Monetarias v4.0 del BCRA (api.bcra.gob.ar).")
 
 with tab5:
+    st.subheader("Plazo fijo: comparación entre bancos")
+    st.write("Tasas que cada banco informó al BCRA para plazos fijos online de $100.000 a 30 días. "
+             "Se compara el rendimiento contra la inflación del último mes.")
+    try:
+        pf = load_plazo_fijo()
+    except (requests.RequestException, KeyError, ValueError) as e:
+        st.warning(f"No pude cargar las tasas de los bancos ({e}). El resto del dashboard sigue funcionando.")
+    else:
+        b1, b2 = st.columns(2)
+        tipo = b1.radio("Tasa para", ["Clientes", "No clientes"], horizontal=True)
+        monto_pf = b2.number_input("Monto a invertir ($)", min_value=0.0, value=1_000_000.0, step=100_000.0)
+        col_tna = "tnaClientes" if tipo == "Clientes" else "tnaNoClientes"
+        t = pf[["entidad", col_tna]].dropna().rename(columns={col_tna: "TNA"})
+        t["Interés a 30 días"] = monto_pf * t["TNA"] / 100 * 30 / 365
+        t["Rendimiento real vs inflación (%)"] = ((1 + t["TNA"] / 100 * 30 / 365) / (1 + infl["mensual"].iloc[-1] / 100) - 1) * 100
+        t = t.sort_values("TNA", ascending=False).reset_index(drop=True)
+        if t.empty:
+            st.info("No hay tasas disponibles para esa selección.")
+        else:
+            gana = int((t["Rendimiento real vs inflación (%)"] > 0).sum())
+            k1, k2, k3 = st.columns(3)
+            k1.metric("Mejor tasa", f"{t['TNA'].iloc[0]:.1f}%", t["entidad"].iloc[0], delta_color="off")
+            k2.metric("Promedio de bancos", f"{t['TNA'].mean():.1f}%")
+            k3.metric("Le ganan a la inflación", f"{gana} de {len(t)}",
+                      f"inflación último mes: {infl['mensual'].iloc[-1]:.1f}%", delta_color="off")
+            st.plotly_chart(px.bar(t.sort_values("TNA"), x="TNA", y="entidad", orientation="h",
+                                   labels={"TNA": "TNA (%)", "entidad": ""}, height=max(400, 22 * len(t))),
+                            width="stretch")
+            st.dataframe(t.round(2), width="stretch", hide_index=True)
+    st.caption("Fuente: Régimen de Transparencia del BCRA, vía argentinadatos.com. "
+               "La tasa puede cambiar para otros montos o plazos. Dato informativo, no es una recomendación de inversión.")
+
+with tab6:
     st.subheader("Predicción de la inflación mensual")
     st.write("Regresión Ridge con rezagos de 1, 2, 3 y 6 meses y medias móviles de 3 y 6 meses, "
              "validada con *walk-forward* sobre los últimos 12 meses. Se compara contra un baseline "
@@ -293,3 +337,4 @@ with tab5:
     st.info("Los pesos del ensemble son fijos (50/50) y no se ajustan mirando el período de prueba, "
             "para no inflar el resultado. Con series cortas y cambios de régimen, el baseline "
             "ingenuo suele ser difícil de superar: reportarlo con honestidad es parte del análisis.")
+    
