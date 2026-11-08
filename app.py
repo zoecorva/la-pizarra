@@ -1,4 +1,4 @@
-"""Dashboard macroeconómico de Argentina: dólares, brechas, inflación, calculadora y modelo."""
+"""La Pizarra, dashboard macroeconómico de Argentina: dólares, brechas, inflación, calculadora y modelo."""
 import numpy as np
 import pandas as pd
 import plotly.express as px
@@ -14,7 +14,7 @@ CASAS = {"oficial": "Oficial", "blue": "Blue", "bolsa": "MEP", "contadoconliqui"
 MESES = ["ene", "feb", "mar", "abr", "may", "jun", "jul", "ago", "sep", "oct", "nov", "dic"]
 PERIODOS = {"1 mes": 30, "3 meses": 90, "6 meses": 180, "1 año": 365, "3 años": 1095, "Todo": None}
 
-st.set_page_config(page_title="Macro Argentina", page_icon="📈", layout="wide")
+st.set_page_config(page_title="La Pizarra", page_icon="📈", layout="wide")
 
 # ---------- Identidad visual: papel moneda ----------
 TINTA, PAPEL, ORO, VERDE, ROJO = "#14213D", "#EEF2F1", "#E0A526", "#2F6B4F", "#B23A48"
@@ -212,8 +212,8 @@ except requests.RequestException as e:
 
 st.markdown(f"""
 <div class="hero"><div>
-  <div class="hero-title">Macro Argentina</div>
-  <div class="hero-sub">Dólar, brechas, inflación, reservas y tasas de plazo fijo en un solo tablero, con datos oficiales.</div>
+  <div class="hero-title">La Pizarra</div>
+  <div class="hero-sub">Dólar, inflación y tasas de Argentina en un solo tablero, con datos oficiales.</div>
   <div class="hero-date">Datos al {dolar.index[-1]:%d/%m/%Y}. Se actualizan cada hora.</div>
 </div></div>
 """, unsafe_allow_html=True)
