@@ -1,4 +1,6 @@
-# 📈 Macro Argentina — Dashboard con Streamlit
+# La Pizarra
+
+**Dólar, inflación y tasas de Argentina en un solo tablero.** Dashboard interactivo hecho con Streamlit.
 
 Dashboard interactivo que descarga datos públicos de la economía argentina y muestra:
 
