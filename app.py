@@ -67,7 +67,15 @@ footer, [data-testid="stToolbar"] { visibility: hidden; }
 /* Títulos */
 h2, h3, [data-testid="stHeading"] * { font-family: 'Newsreader', serif !important; font-weight: 500; letter-spacing: -.01em; color: #14213D !important; }
 .stAlert { border-radius: 4px; }
-@media (max-width: 640px) { .hero { padding: 1.8rem 1.3rem; } [data-testid="stMetricValue"] * { font-size: 1.8rem; } }
+@media (max-width: 640px) {
+    .block-container { padding: 1rem .9rem 3rem; }
+    .hero { padding: 1.6rem 1.2rem; margin-bottom: 1.2rem; }
+    [data-testid="stHorizontalBlock"] { flex-wrap: wrap !important; gap: .4rem 1rem !important; }
+    [data-testid="stColumn"], [data-testid="column"] { flex: 1 1 calc(50% - 1rem) !important; min-width: calc(50% - 1rem) !important; }
+    [data-testid="stMetricValue"] * { font-size: 1.7rem; }
+    [data-baseweb="tab-list"] { gap: 1rem; }
+    [data-baseweb="tab"] p { font-size: .95rem; }
+}
 </style>
 """, unsafe_allow_html=True)
 
@@ -219,8 +227,7 @@ st.markdown(f"""
 """, unsafe_allow_html=True)
 
 # Sidebar: período y cotizaciones
-with st.sidebar:
-    st.header("Filtros")
+with st.expander("Filtros: período y cotizaciones"):
     periodo = st.radio("Período", list(PERIODOS) + ["Personalizado"], index=3, horizontal=True)
     fin = dolar.index.max()
     if periodo == "Personalizado":
@@ -239,7 +246,6 @@ with st.sidebar:
     else:
         inicio = fin - pd.Timedelta(days=PERIODOS[periodo])
     seleccion = st.multiselect("Cotizaciones", list(dolar.columns), default=list(dolar.columns))
-    st.caption("Fuentes: argentinadatos.com y API del BCRA")
 
 d = dolar.loc[inicio:fin]
 infl_f = infl.loc[inicio:fin]
@@ -401,3 +407,5 @@ with tab6:
     st.info("Los pesos del ensemble son fijos (50/50) y no se ajustan mirando el período de prueba, "
             "para no inflar el resultado. Con series cortas y cambios de régimen, el baseline "
             "ingenuo suele ser difícil de superar: reportarlo con honestidad es parte del análisis.")
+
+st.caption("Fuentes: INDEC y BCRA (a través de su API oficial) y argentinadatos.com.")
