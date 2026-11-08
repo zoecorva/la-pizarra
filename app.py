@@ -39,7 +39,7 @@ st.markdown("""
     font-family: 'Hanken Grotesk', sans-serif; color: #14213D; }
 [data-testid="stSidebar"] { background: #E1E8E6; }
 .block-container { max-width: 1180px; padding-top: 2rem; padding-bottom: 4rem; }
-footer, [data-testid="stToolbar"] { visibility: hidden; }
+footer { visibility: hidden; }
 
 /* Portada: guilloché de billete hecho con círculos concéntricos */
 .hero { position: relative; overflow: hidden; border-radius: 6px; padding: 2.6rem 2.4rem 2.3rem; margin-bottom: 1.8rem; background: #14213D; }
