@@ -13,6 +13,8 @@ Dashboard interactivo que descarga datos públicos de la economía argentina y m
 - **Modelo predictivo** (Ridge con rezagos y medias móviles) para la inflación del próximo mes,
   con validación *walk-forward*, comparación contra un baseline ingenuo y un ensemble 50/50.
 
+Diseño responsive: se adapta a celulares (indicadores en dos columnas, filtros en un desplegable).
+
 ## Stack
 Python · pandas · scikit-learn · Plotly · Streamlit · APIs de [argentinadatos.com](https://argentinadatos.com) y del [BCRA](https://www.bcra.gob.ar/apis-banco-central/)
 
