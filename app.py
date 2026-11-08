@@ -63,18 +63,19 @@ def change(series: pd.Series, days: int = 30, pct: bool = True):
 
 
 # ---------- Modelo ----------
-N_LAGS = 6
+LAGS = [1, 2, 3, 6]
 
 
 def make_features(s: pd.Series) -> pd.DataFrame:
-    X = pd.concat({f"lag_{i}": s.shift(i) for i in range(1, N_LAGS + 1)}, axis=1)
+    X = pd.concat({f"lag_{i}": s.shift(i) for i in LAGS}, axis=1)
     X["media_3m"] = s.shift(1).rolling(3).mean()
+    X["media_6m"] = s.shift(1).rolling(6).mean()
     return X
 
 
 @st.cache_data(ttl=3600)
 def backtest_and_forecast(s: pd.Series, test_size: int = 12):
-    """Walk-forward: reentrena mes a mes y compara contra un baseline ingenuo."""
+    """Walk-forward: reentrena mes a mes y compara modelo, baseline ingenuo y ensemble 50/50."""
     data = pd.concat([make_features(s), s.rename("y")], axis=1).dropna()
     feats = [c for c in data.columns if c != "y"]
     preds = []
@@ -86,14 +87,19 @@ def backtest_and_forecast(s: pd.Series, test_size: int = 12):
     result = pd.DataFrame(
         {"real": test["y"], "modelo": preds, "ingenuo": test["lag_1"]}, index=test.index
     )
-    metrics = {
-        "MAE modelo": mean_absolute_error(result["real"], result["modelo"]),
-        "MAE ingenuo": mean_absolute_error(result["real"], result["ingenuo"]),
-    }
+    # Pesos fijos (50/50): no se ajustan mirando el período de prueba, así no hay fuga de información
+    result["ensemble"] = 0.5 * result["modelo"] + 0.5 * result["ingenuo"]
+    metrics = {k: mean_absolute_error(result["real"], result[k])
+               for k in ["modelo", "ingenuo", "ensemble"]}
+
+    # Pronóstico del próximo mes con el modelo entrenado sobre todo el historial
     final = Ridge(alpha=1.0).fit(data[feats], data["y"])
-    last = {f"lag_{i}": s.iloc[-i] for i in range(1, N_LAGS + 1)}
+    last = {f"lag_{i}": s.iloc[-i] for i in LAGS}
     last["media_3m"] = s.iloc[-3:].mean()
-    return result, metrics, final.predict(pd.DataFrame([last])[feats])[0]
+    last["media_6m"] = s.iloc[-6:].mean()
+    modelo_next = final.predict(pd.DataFrame([last])[feats])[0]
+    forecast = {"modelo": modelo_next, "ensemble": 0.5 * modelo_next + 0.5 * s.iloc[-1]}
+    return result, metrics, forecast
 
 
 # ---------- App ----------
@@ -209,16 +215,19 @@ with tab3:
 
 with tab4:
     st.subheader("Predicción de la inflación mensual")
-    st.write("Regresión Ridge con 6 rezagos + media móvil de 3 meses, validada con "
-             "*walk-forward* sobre los últimos 12 meses y comparada con un baseline ingenuo "
-             "(repetir el mes anterior).")
-    result, metrics, next_pred = backtest_and_forecast(infl["mensual"])
-    m1, m2, m3 = st.columns(3)
-    m1.metric("MAE modelo (p.p.)", f"{metrics['MAE modelo']:.2f}")
-    m2.metric("MAE ingenuo (p.p.)", f"{metrics['MAE ingenuo']:.2f}")
-    m3.metric("Próximo mes (estimado)", f"{next_pred:.1f}%")
-    st.plotly_chart(px.line(result, y=["real", "modelo", "ingenuo"],
+    st.write("Regresión Ridge con rezagos de 1, 2, 3 y 6 meses y medias móviles de 3 y 6 meses, "
+             "validada con *walk-forward* sobre los últimos 12 meses. Se compara contra un baseline "
+             "ingenuo (repetir el mes anterior) y contra un ensemble 50/50 de ambos.")
+    result, metrics, forecast = backtest_and_forecast(infl["mensual"])
+    m1, m2, m3, m4 = st.columns(4)
+    m1.metric("MAE modelo (p.p.)", f"{metrics['modelo']:.2f}")
+    m2.metric("MAE ingenuo (p.p.)", f"{metrics['ingenuo']:.2f}")
+    m3.metric("MAE ensemble (p.p.)", f"{metrics['ensemble']:.2f}")
+    m4.metric("Próximo mes (ensemble)", f"{forecast['ensemble']:.1f}%",
+              f"modelo solo: {forecast['modelo']:.1f}%", delta_color="off")
+    st.plotly_chart(px.line(result, y=["real", "modelo", "ingenuo", "ensemble"],
                             labels={"value": "Inflación mensual (%)", "fecha": "", "variable": ""}),
                     width="stretch")
-    st.info("Con series cortas y cambios de régimen, el baseline ingenuo suele ser difícil de "
-            "superar. Reportarlo con honestidad es parte del análisis.")
+    st.info("Los pesos del ensemble son fijos (50/50) y no se ajustan mirando el período de prueba, "
+            "para no inflar el resultado. Con series cortas y cambios de régimen, el baseline "
+            "ingenuo suele ser difícil de superar: reportarlo con honestidad es parte del análisis.")
